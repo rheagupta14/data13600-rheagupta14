@@ -1,4 +1,4 @@
-
+# Samples about 1% of lines
 import sys
 import random
 
