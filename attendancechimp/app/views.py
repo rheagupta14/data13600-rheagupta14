@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -22,5 +23,5 @@ def sum_view(request):
         n2 = _to_number(request.GET["n2"])
     except (KeyError, ValueError):
         return JsonResponse({"error": "n1 and n2 must be numbers"}, status=400)
-    return JsonResponse({"sum": n1 + n2})
-
+    body = json.dumps({"sum": n1 + n2})
+    return HttpResponse(f"<p>{body}</p>")
