@@ -1,7 +1,19 @@
 <!DOCTYPE html>
-<html><head><title>Login</title></head>
-<body style="text-align:center; font-family:Arial;">
-<h1>Log In</h1>
-
+<html>
+<head>
+  <title>Log In - AttendanceChimp</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; margin-top: 80px; }
+  </style>
+</head>
+<body>
+  <h1>Log In</h1>
+  {% if form.errors %}<p>Invalid username or password.</p>{% endif %}
+  <form method="POST" action="{% url 'login' %}">
+    {% csrf_token %}
+    <p><label>Username: <input type="text" name="username"></label></p>
+    <p><label>Password: <input type="password" name="password"></label></p>
+    <p><button type="submit">Log In</button></p>
+  </form>
 </body>
 </html>

@@ -1,20 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>AttendanceChimp</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin: 40px; }
-        .bio { max-width: 600px; margin: 0 auto; }
-        .username { font-weight: bold; font-size: 1.2em; }
-    </style>
+  <title>AttendanceChimp</title>
+  <style>
+    body { text-align: center; font-family: sans-serif; margin-top: 80px; }
+  </style>
 </head>
 <body>
-<div class="bio">
-    <h1>AttendanceChimp</h1>
-    <p>Electronic class attendance tracking application.</p>
-    <hr>
+  <h1>AttendanceChimp</h1>
+  <p>Electronic class attendance tracking application. Instructors project a QR code
+     for each lecture, and students photograph it to check in.</p>
 
-</div>
+  {% if user_name %}
+    <p><b>{{ user_name }}</b></p>
+    <form method="POST" action="{% url 'logout' %}">
+      {% csrf_token %}
+      <button type="submit">Log out</button>
+    </form>
+  {% else %}
+    <p>Not logged in.</p>
+    <p><a href="/accounts/login/">Log in</a> | <a href="/app/new">Sign up</a></p>
+  {% endif %}
+
+  <p>Current time (CST): {{ current_time }}</p>
 </body>
 </html>
