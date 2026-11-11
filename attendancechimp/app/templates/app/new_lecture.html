@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head><title>New Lecture</title></head>
+<body>
+  <h1>Create a Lecture</h1>
+  <form action="/app/createLecture" method="post">
+    <p><label>Course:
+      <select name="choice" required>
+        {% for course in courses %}
+        <option value="{{ course.name }}">{{ course.name }}</option>
+        {% endfor %}
+      </select>
+    </label></p>
+    <button type="submit">Create lecture</button>
+  </form>
+</body>
+</html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head><title>New Course</title></head>
+<body>
+  <h1>Create a Course</h1>
+  <form action="/app/createCourse" method="post">
+    <p><label>Course name: <input type="text" name="course-name" required></label></p>
+    <p><label>Start time: <input type="time" name="start-time" required></label></p>
+    <p><label>End time: <input type="time" name="end-time" required></label></p>
+    <p>Days:
+      <label><input type="checkbox" name="day-mon"> Mon</label>
+      <label><input type="checkbox" name="day-tue"> Tue</label>
+      <label><input type="checkbox" name="day-wed"> Wed</label>
+      <label><input type="checkbox" name="day-thu"> Thu</label>
+      <label><input type="checkbox" name="day-fri"> Fri</label>
+    </p>
+    <button type="submit">Create course</button>
+  </form>
+</body>
+</html>

@@ -55,3 +55,6 @@ LOGIN_REDIRECT_URL = '/'
 
 LOGIN_REDIRECT_URL = '/app/'
 LOGOUT_REDIRECT_URL = '/app/'
+
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
