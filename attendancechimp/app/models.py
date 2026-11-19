@@ -109,7 +109,6 @@ class Enrollment(models.Model):
     student = models.ForeignKey(StudentProfile, on_delete=models.CASCADE)
     course = models.ForeignKey(Course, on_delete=models.CASCADE)
     enrolled_at = models.DateTimeField(auto_now_add=True)
-
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -182,13 +181,6 @@ class QRCodeUpload(models.Model):
     decoded_text = models.CharField(max_length=64, blank=True)
     image_hash = models.CharField(max_length=64, blank=True, db_index=True)
     is_valid = models.BooleanField(default=False)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["student", "lecture"], name="one_upload_per_student_lecture"
-            )
-        ]
 
     def __str__(self):
         return f"Upload by {self.student} at {self.uploaded_at:%Y-%m-%d %H:%M}"
