@@ -2,14 +2,23 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.db import transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_GET, require_POST
+from django.views.decorators.http import require_GET, require_POST, require_http_methods
 
-from .models import InstructorProfile, StudentProfile
+from .models import (
+    Course,
+    InstructorProfile,
+    Lecture,
+    QRCodeUpload,
+    StudentProfile,
+    getUploadsForCourse,
+)
 
 
 def index(request):
@@ -27,7 +36,7 @@ def new(request):
     return render(request, "app/new.html")
 
 
-@csrf_exempt  # needed so the plain curl request (no CSRF token) works
+@csrf_exempt  
 @require_POST
 def createUser(request):
     email = request.POST.get("email", "").strip()
@@ -77,18 +86,7 @@ def sum_view(request):
     return HttpResponse(f"<p>{n1 + n2}</p>")
 
 
-# ===================== HW5 =====================
-from datetime import datetime
-
-from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, JsonResponse
-from django.shortcuts import render
-from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-
-from .models import Course, Lecture, QRCodeUpload
-
+# HW%
 
 def is_instructor(user):
     return user.is_authenticated and hasattr(user, "instructorprofile")
@@ -109,6 +107,11 @@ def parse_time(text):
         except (ValueError, AttributeError):
             pass
     return None
+
+
+def is_checked(value):
+    """True if a form checkbox/field value means 'checked'."""
+    return value not in (None, "", "false", "False", "0", "off")
 
 
 @login_required
@@ -135,21 +138,41 @@ def createCourse(request):
     name = request.POST.get("course-name")
     start = parse_time(request.POST.get("start-time", ""))
     end = parse_time(request.POST.get("end-time", ""))
+    code = (
+        request.POST.get("course-number")
+        or request.POST.get("course")
+        or request.POST.get("code")
+        or (name or "")
+    )
+    code = code.replace(" ", "").strip()
 
-    letters = [("day-mon", "M"), ("day-tue", "T"), ("day-wed", "W"),
-               ("day-thu", "R"), ("day-fri", "F")]
-    days = "".join(l for field, l in letters
-                   if request.POST.get(field) not in (None, "", "false", "False", "0", "off"))
+    day_fields = {
+        "mon": "day-mon",
+        "tue": "day-tue",
+        "wed": "day-wed",
+        "thu": "day-thu",
+        "fri": "day-fri",
+        "sat": "day-sat",
+        "sun": "day-sun",
+    }
+    days = {
+        attr: is_checked(request.POST.get(field))
+        for attr, field in day_fields.items()
+    }
 
-    if not name or start is None or end is None or not days:
+    if not name or not code or start is None or end is None or not any(days.values()):
         return HttpResponse("Bad input", status=400)
+
+    if Course.objects.filter(code=code).exists():
+        return HttpResponse("Course number already exists", status=409)
 
     Course.objects.create(
         name=name,
+        code=code,
         instructor=request.user.instructorprofile,
-        meeting_days=days,
         start_time=start,
         end_time=end,
+        **days,
     )
     return HttpResponse("Course created", status=200)
 
@@ -190,6 +213,33 @@ def dumpUploads(request):
 
     data = []
     for up in QRCodeUpload.objects.select_related("student__user").order_by("uploaded_at"):
+        ts = up.uploaded_at
+        if timezone.is_aware(ts):
+            ts = timezone.localtime(ts)
+        data.append({
+            "username": up.student.user.username,
+            "upload_time": ts.strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    return JsonResponse(data, safe=False)
+
+
+# HW6
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def getUploads(request):
+    """Return the valid (during-class-time) uploads for ?course=<course number>."""
+    if not is_instructor(request.user):
+        return unauthorized()
+
+    course = request.GET.get("course")
+    if not course:
+        return JsonResponse({"error": "Missing course parameter"}, status=400)
+
+    uploads = getUploadsForCourse(course)
+
+    data = []
+    for up in uploads:
         ts = up.uploaded_at
         if timezone.is_aware(ts):
             ts = timezone.localtime(ts)

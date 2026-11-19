@@ -7,30 +7,24 @@ photograph the QR code and upload the image.  The system decodes the QR code,
 matches it to a lecture, and records the attendance.
 
 Entities
---------
-- CourseProfile   : extends Django User → instructor-specific data
-- StudentProfile  : extends Django User → student-specific data
-- Course          : a course taught by one instructor
-- Enrollment      : junction table linking students to courses
-- Lecture         : a single class meeting (has a QR-code identifier)
-- QRCodeUpload    : a student's uploaded QR-code photograph
+- InstructorProfile : extends Django User → instructor-specific data
+- StudentProfile    : extends Django User → student-specific data
+- Course            : a course taught by one instructor
+- Enrollment        : junction table linking students to courses
+- Lecture           : a single class meeting (has a QR-code identifier)
+- QRCodeUpload      : a student's uploaded QR-code photograph
 """
 
 from django.db import models
 from django.contrib.auth.models import User
-
+from zoneinfo import ZoneInfo
 import logging
 import string
 import random
 
-logger = logging.getLogger(__name__) # set up tracking, auditing, and debugging
-                                                               # allows using logger.warning(), logger.error(), 
-                                                               # logger.info(), etc. Better than print() for debuggin... 
+logger = logging.getLogger(__name__)  
 
-
-# ---------------------------------------------------------------------------
-# User profiles
-# ---------------------------------------------------------------------------
+#user
 
 class InstructorProfile(models.Model):
     """Instructor-specific data attached to a Django User.
@@ -62,26 +56,30 @@ class StudentProfile(models.Model):
         return self.user.username
 
 
-# ---------------------------------------------------------------------------
-# Course
-# ---------------------------------------------------------------------------
-
+#course
 
 class Course(models.Model):
     """A course taught by exactly one instructor.
 
-    The meeting schedule is stored as the days it meets (e.g. "MWF") plus a
-    start and end time. Students are linked through Enrollment (many-to-many).
+    The meeting schedule is stored as one boolean per weekday plus a start
+    and end time. Students are linked through Enrollment (many-to-many).
+    The course number (code) is unique, e.g. "DATA13600" (no space).
     """
 
     name = models.CharField(max_length=200)
-    code = models.CharField(max_length=20, blank=True)  # e.g. "DATA 13600"
+    code = models.CharField(max_length=20, unique=True)  # e.g. "DATA13600"
     instructor = models.ForeignKey(
         InstructorProfile,
         on_delete=models.PROTECT,
         related_name="courses",
     )
-    meeting_days = models.CharField(max_length=20, help_text='e.g. "MWF"')
+    mon = models.BooleanField(default=False)
+    tue = models.BooleanField(default=False)
+    wed = models.BooleanField(default=False)
+    thu = models.BooleanField(default=False)
+    fri = models.BooleanField(default=False)
+    sat = models.BooleanField(default=False)
+    sun = models.BooleanField(default=False)
     start_time = models.TimeField()
     end_time = models.TimeField()
     students = models.ManyToManyField(
@@ -90,10 +88,17 @@ class Course(models.Model):
 
     def __str__(self):
         return f"{self.code} {self.name}".strip()
+        
+    def meets_on_day(self, weekday):
+        """Return True if the course meets on this weekday.
 
-# ---------------------------------------------------------------------------
-# Enrollment
-# ---------------------------------------------------------------------------
+        weekday is an int from 0 to 6, where Monday is 0 and Sunday is 6
+        (the same numbering as Python's datetime.weekday()).
+        """
+        days = [self.mon, self.tue, self.wed, self.thu, self.fri, self.sat, self.sun]
+        return days[weekday]
+
+#enrollmenr
 class Enrollment(models.Model):
     """Links a student to a course (the many-to-many junction table).
 
@@ -115,9 +120,8 @@ class Enrollment(models.Model):
     def __str__(self):
         return f"{self.student} in {self.course}"
 
-# ---------------------------------------------------------------------------
-# Lecture
-# ---------------------------------------------------------------------------
+
+#lecture
 
 def generate_qr_identifier(length=16):
     """Return a random alphanumeric string to be encoded in a lecture's QR code.
@@ -128,6 +132,8 @@ def generate_qr_identifier(length=16):
     alphabet = string.ascii_letters + string.digits
     rng = random.SystemRandom()
     return "".join(rng.choice(alphabet) for _ in range(length))
+
+
 class Lecture(models.Model):
     """A single class meeting of a course.
 
@@ -150,10 +156,7 @@ class Lecture(models.Model):
         return f"{self.course} on {self.date:%Y-%m-%d}"
 
 
-# ---------------------------------------------------------------------------
-# QR Code Upload
-# ---------------------------------------------------------------------------
-
+#qr upload
 class QRCodeUpload(models.Model):
     """A student's uploaded photo of a lecture's QR code.
 
@@ -190,10 +193,36 @@ class QRCodeUpload(models.Model):
     def __str__(self):
         return f"Upload by {self.student} at {self.uploaded_at:%Y-%m-%d %H:%M}"
 
+#helpers
+CHICAGO = ZoneInfo("America/Chicago")
 
-# ---------------------------------------------------------------------------
-# Helper / API functions
-# ---------------------------------------------------------------------------
+
+def getUploadsForCourse(course):
+    """Return the QRCodeUploads for a course that were made during class time.
+
+    course is the course number string, e.g. "DATA13600".
+    Returns [] if the course doesn't exist.
+    """
+    try:
+        course_obj = Course.objects.get(code=course)
+    except Course.DoesNotExist:
+        return []
+
+    uploads = QRCodeUpload.objects.filter(
+        lecture__course=course_obj
+    ).select_related("student__user")
+
+    valid = []
+    for upload in uploads:
+        local = upload.uploaded_at.astimezone(CHICAGO)
+
+        if not course_obj.meets_on_day(local.weekday()):
+            continue
+
+        if course_obj.start_time <= local.time() <= course_obj.end_time:
+            valid.append(upload)
+
+    return valid
 def is_enrolled(student, course):
     """Return True if the student is enrolled in the course."""
     return Enrollment.objects.filter(student=student, course=course).exists()
@@ -224,5 +253,3 @@ def record_attendance(student, decoded_text, image):
     if not created:
         logger.info("Student %s already checked in to %s", student, lecture)
     return upload
-
-
